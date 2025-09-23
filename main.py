@@ -19,7 +19,7 @@ app = FastAPI(title="Scraper de Alquileres API", version="2.4.0")
 FRONTEND_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://scraper-frontend-silk.vercel.app/",
+    "https://scraper-alquileres-frontend.vercel.app",
 ]
 app.add_middleware(
     CORSMiddleware,
