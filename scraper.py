@@ -40,16 +40,31 @@ def create_driver(headless: bool = True):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-images")  # Opcional: acelera el scraping
     options.add_argument("--window-size=1920,1080")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+    # Forzar el uso de Chromium en lugar de Chrome
+    options.binary_location = "/usr/bin/chromium"
+
+    # Inicializar el servicio con el driver correcto
+    service = Service(executable_path="/usr/bin/chromedriver")
+
+    try:
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        logger.error(f"❌ FATAL: No se pudo inicializar ChromeDriver en Render: {e}")
+        raise RuntimeError(f"Driver initialization failed in Render: {e}")
+
     try:
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
         })
     except Exception:
         pass
+
     return driver
 
 def slugify_zone(zona: str) -> str:
@@ -1026,18 +1041,20 @@ def run_scrapers(zona: str = "", dormitorios: str = "0", banos: str = "0",
     counts_after = {}
     logger.info(f"🔎 Buscando: zona='{zona}' | dorms={dormitorios} | baños={banos} | pmin={price_min} | pmax={price_max} | keywords='{palabras_clave}'")
     for name, func in SCRAPERS:
-        logger.info(f"-> Ejecutando scraper: {name}")
+        logger.info(f"▶️ INICIANDO scraper: {name.upper()}")
         try:
             df = func(zona=zona, dormitorios=dormitorios, banos=banos, price_min=price_min, price_max=price_max, palabras_clave=palabras_clave)
+            logger.info(f"✅ COMPLETADO scraper: {name.upper()} - Resultados crudos: {len(df)}")
         except TypeError:
-            # backward compatibility: call with fewer args
+            # backward compatibility
             try:
                 df = func(zona, dormitorios, banos, price_min, price_max)
+                logger.info(f"✅ COMPLETADO (fallback) scraper: {name.upper()} - Resultados crudos: {len(df)}")
             except Exception as e:
-                logger.error(f" ❌ Error ejecutando {name} (fallback): {e}")
+                logger.error(f" ❌ ERROR FATAL en {name.upper()} (fallback): {e}")
                 df = pd.DataFrame()
         except Exception as e:
-            logger.error(f" ❌ Error ejecutando {name}: {e}")
+            logger.error(f" ❌ ERROR FATAL en {name.upper()}: {e}")
             df = pd.DataFrame()
         if df is None or not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(columns=["titulo","precio","m2","dormitorios","baños","descripcion","link","imagen_url"])
